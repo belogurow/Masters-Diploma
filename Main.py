@@ -44,23 +44,28 @@ def match_and_stitch(kp_matcher: KeypointsMatcher, kp_detector: KeypointsDetecto
 
 
 def start(image_path_folder, limit=None):
+    if limit is not None:
+        assert limit >= 2
+
     orthophotos = []
 
     kp_detector = KeypointsDetector()
     kp_matcher = KeypointsMatcher()
 
     # Для всех входных фото определяем их ключевые точки
-    photos_count = None
-    for photos_count, file_name in enumerate(sorted(listdir(image_path_folder))):
+    photos_count = 0
+    for file_name in sorted(listdir(image_path_folder)):
         full_file_name = join(image_path_folder, file_name)
 
         if isfile(full_file_name) and ImageUtils.is_image(full_file_name):
             orthophoto = Orthophoto(cv2.imread(full_file_name), compress_ratio=0.4)
             kp_detector.detect_and_compute(orthophoto)
             orthophotos.append(orthophoto)
-            logging.debug(f"Processed {file_name}")
 
-        if limit is not None and photos_count + 1 == limit:
+            logging.debug(f"Processed {file_name}")
+            photos_count += 1
+
+        if limit is not None and photos_count == limit:
             break
 
     # Если не было задано кол-во обрабатываемых фото, то берем общее их кол-во в папке
@@ -82,7 +87,7 @@ def start(image_path_folder, limit=None):
 
 if __name__ == "__main__":
     # start("/Users/alexbelogurow/Study/4sem/nirs/resources/orthophoto")
-    # start("/Users/alexbelogurow/Study/4sem/nirs/resources/merlischachen")
+    # start("/Users/alexbelogurow/Study/4sem/nirs/resources/merlischachen", limit=1)
     # start("/Users/alexbelogurow/Study/4sem/geotagged-images", limit=10)
     # start("/Users/alexbelogurow/Study/4sem/photos_non_gcp", limit=10)
-    start("/Users/alexbelogurow/Study/4sem/nirs/resources/rotated")
+    start("/Users/alexbelogurow/Study/4sem/nirs/resources/rotated", limit=2)
