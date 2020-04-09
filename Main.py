@@ -26,13 +26,12 @@ logging.basicConfig(
     format='[%(asctime)s] %(filename)s:%(lineno)d \t%(levelname)s - %(message)s',
 )
 
-
 def match_and_stitch(kp_matcher: KeypointsMatcher, kp_detector: KeypointsDetector, orthophoto1: Orthophoto,
-                     orthophoto2: Orthophoto) -> Orthophoto:
+                     orthophoto2: Orthophoto, i) -> Orthophoto:
     matches = kp_matcher.match(orthophoto1, orthophoto2)
-    matches = sorted(matches, key=lambda val: val.distance)
+    matches = sorted(matches, key=lambda val: val.distance)[:200]
 
-    # img_matches = ImageUtils.drawMatches(orthophotos[i - 1], orthophotos[i], matches[:25])
+    # img_matches = ImageUtils.drawMatches(orthophoto1, orthophoto2, matches)
     # cv2.imwrite(f"img_matches{i}.jpg", img_matches)
 
     stitching_img = Stitching(orthophoto1, orthophoto2, matches).stitch_orthophotos()
@@ -76,18 +75,19 @@ def start(image_path_folder, limit=None):
     for i in range(1, limit):
         if i == 1:
             # первая склейка, берем первые два изображения
-            orthophoto = match_and_stitch(kp_matcher, kp_detector, orthophotos[i - 1], orthophotos[i])
+            orthophoto = match_and_stitch(kp_matcher, kp_detector, orthophotos[i - 1], orthophotos[i], i)
         else:
             # следующие склейки, берем ортофото и текущее изображение
-            orthophoto = match_and_stitch(kp_matcher, kp_detector, orthophoto, orthophotos[i])
+            orthophoto = match_and_stitch(kp_matcher, kp_detector, orthophoto, orthophotos[i], i)
 
         logging.info(f"Create Orthophoto{i}")
-        cv2.imwrite(f"orthophoto{i}.jpg", orthophoto.img)
+        cv2.imwrite(f"orthophoto{i}_INTER_NEAREST.jpg", orthophoto.img)
 
 
 if __name__ == "__main__":
     # start("/Users/alexbelogurow/Study/4sem/nirs/resources/orthophoto")
-    # start("/Users/alexbelogurow/Study/4sem/nirs/resources/merlischachen", limit=1)
+    # start("/Users/alexbelogurow/Study/4sem/nirs/resources/merlischachen")
     # start("/Users/alexbelogurow/Study/4sem/geotagged-images", limit=10)
     # start("/Users/alexbelogurow/Study/4sem/photos_non_gcp", limit=10)
-    start("/Users/alexbelogurow/Study/4sem/nirs/resources/rotated", limit=2)
+    # start("/Users/alexbelogurow/Study/4sem/nirs/resources/rotated")
+    start("/Users/alexbelogurow/Study/4sem/geotagged-images", limit=30)
