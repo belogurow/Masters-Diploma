@@ -1,3 +1,5 @@
+import logging
+
 import cv2
 import numpy as np
 
@@ -33,24 +35,30 @@ class Stitching:
 
             img1 = self.orthophoto1.img
             img2 = self.orthophoto2.img
-            # img2 = cv2.polylines(self.orthophoto2.img, [np.int32(border_img1)], True, 255, 3, cv2.LINE_AA)
+            # img2 = cv2.polylines(self.orthophoto2.img, [np.int32(border_img1)], True, 255, 10, cv2.LINE_AA)
             # cv2.imwrite("original_image_overlapping.jpg", img2)
 
+            img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2BGRA)
+            img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2BGRA)
+
             # первое изображение в перспективе
-            shape_for_perspective_image = (img1.shape[0] + img2.shape[0], img1.shape[1] + img2.shape[1])
-            stitching_photo = cv2.warpPerspective(img1, M, shape_for_perspective_image, flags=cv2.INTER_NEAREST)
+            shape_for_perspective_image = (img1.shape[0] * 2 + img2.shape[0], img1.shape[1] * 2 + img2.shape[1])
+            stitching_photo = cv2.warpPerspective(img1, M, dsize=shape_for_perspective_image)
             # cv2.imwrite("perspective.jpg", dst)
 
             # второе изображение накладываем на первое в перспективе
-            print(stitching_photo.shape)
-            stitching_photo[offset_y:offset_y + img2.shape[0], offset_x:offset_x + img2.shape[1]] = img2
+            # если пиксель второго изображения прозрачный - берем пиксель первого изображения
+            replacing_area = stitching_photo[offset_y:offset_y + img2.shape[0], offset_x:offset_x + img2.shape[1]]
+            replacing_area = np.where(ImageUtils.is_not_transparent_pixels(img2), img2, replacing_area)
+            stitching_photo[offset_y:offset_y + img2.shape[0], offset_x:offset_x + img2.shape[1]] = replacing_area
 
             # обрезаем черные области по краям
             stitching_photo = ImageUtils.crop_image_only_outside(stitching_photo)
 
             return stitching_photo
-        except:
+        except Exception as e:
             # Если возникла ошибка, отдам первое изображение
+            logging.error(e)
             return self.orthophoto1.img
 
     @staticmethod

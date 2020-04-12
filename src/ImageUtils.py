@@ -16,7 +16,6 @@ def crop_image_only_outside(img, tol=0):
     row_start, row_end = mask1.argmax(), m - mask1[::-1].argmax()
     return img[row_start:row_end, col_start:col_end]
 
-
 def drawMatches(orthophoto1: Orthophoto, orthophoto2: Orthophoto, matches):
     img1 = orthophoto1.img
     img2 = orthophoto2.img
@@ -46,3 +45,7 @@ def drawMatches(orthophoto1: Orthophoto, orthophoto2: Orthophoto, matches):
 
 def is_image(image_path):
     return image_path.lower().endswith(".jpg") or image_path.lower().endswith(".png")
+
+
+def is_not_transparent_pixels(img):
+    return img[..., [3]] == 255
