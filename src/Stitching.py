@@ -64,7 +64,7 @@ class Stitching:
     @staticmethod
     def test_offset(M, border_img1_on_img2):
         # Если границы вышли первого изображения вышли за пределы, то его необходимо подвинуть
-        # то, есть модифировать homography matrix М
+        # то есть модифировать homography matrix М
 
         min_x, min_y = min(border_img1_on_img2[:, 0, 0]), min(border_img1_on_img2[:, 0, 1])
         transformation_matrix = np.float32([[1, 0, 0],

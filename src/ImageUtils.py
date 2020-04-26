@@ -3,6 +3,8 @@ import numpy as np
 
 from Orthophoto import Orthophoto
 
+IMAGE_SAVING_FOLDER = 'result_images/'
+
 
 def crop_image_only_outside(img, tol=0):
     # img is 2D or 3D image data
@@ -15,6 +17,7 @@ def crop_image_only_outside(img, tol=0):
     col_start, col_end = mask0.argmax(), n - mask0[::-1].argmax()
     row_start, row_end = mask1.argmax(), m - mask1[::-1].argmax()
     return img[row_start:row_end, col_start:col_end]
+
 
 def drawMatches(orthophoto1: Orthophoto, orthophoto2: Orthophoto, matches):
     img1 = orthophoto1.img
@@ -49,3 +52,14 @@ def is_image(image_path):
 
 def is_not_transparent_pixels(img):
     return img[..., [3]] == 255
+
+
+def get_name_of_image(img_name):
+    if is_image(img_name):
+        return img_name[:-4]
+    else:
+        return img_name
+
+
+def save_img(img_name, img):
+    cv2.imwrite(f'{IMAGE_SAVING_FOLDER}{img_name}.jpg', img)

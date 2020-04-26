@@ -1,4 +1,5 @@
 import logging
+import time
 from os import listdir
 from os.path import isfile, join
 
@@ -27,7 +28,7 @@ def get_index():
 
 
 def match_and_stitch(kp_matcher: KeypointsMatcher, kp_detector: KeypointsDetector, orthophoto1: Orthophoto,
-                     orthophoto2: Orthophoto, i) -> Orthophoto:
+                     orthophoto2: Orthophoto) -> Orthophoto:
     matches = kp_matcher.match(orthophoto1, orthophoto2)
     matches = sorted(matches, key=lambda val: val.distance)[:300]
 
@@ -36,7 +37,8 @@ def match_and_stitch(kp_matcher: KeypointsMatcher, kp_detector: KeypointsDetecto
 
     stitching_img = Stitching(orthophoto1, orthophoto2, matches).stitch_orthophotos()
 
-    new_orthophoto = Orthophoto(stitching_img, compress_ratio=1.)
+    new_orthophoto_name = f'{orthophoto1.img_name}+{orthophoto2.img_name}'
+    new_orthophoto = Orthophoto(stitching_img, new_orthophoto_name, compress_ratio=1.)
     kp_detector.detect_and_compute(new_orthophoto)
 
     return new_orthophoto
@@ -51,14 +53,15 @@ def create_orthophoto(kp_matcher, kp_detector, orthophotos):
     for i in range(1, len(orthophotos)):
         if i == 1:
             # первая склейка, берем первые два изображения
-            orthophoto = match_and_stitch(kp_matcher, kp_detector, orthophotos[i - 1], orthophotos[i], i)
+            orthophoto = match_and_stitch(kp_matcher, kp_detector, orthophotos[i - 1], orthophotos[i])
         else:
             # следующие склейки, берем ортофото и текущее изображение
-            orthophoto = match_and_stitch(kp_matcher, kp_detector, orthophoto, orthophotos[i], i)
+            orthophoto = match_and_stitch(kp_matcher, kp_detector, orthophoto, orthophotos[i])
 
         index = get_index()
         logging.info(f"Create Orthophoto{index}")
-        cv2.imwrite(f"result_images/orthophoto{index}.jpg", orthophoto.img)
+        ImageUtils.save_img(f"orthophoto{index}", orthophoto.img)
+        # cv2.imwrite(f"result_images/orthophoto{index}.jpg", orthophoto.img)
 
     return orthophoto
 
@@ -78,7 +81,7 @@ def start(image_path_folder, limit=None):
         full_file_name = join(image_path_folder, file_name)
 
         if isfile(full_file_name) and ImageUtils.is_image(full_file_name):
-            orthophoto = Orthophoto(cv2.imread(full_file_name), compress_ratio=0.4)
+            orthophoto = Orthophoto(cv2.imread(full_file_name), file_name, compress_ratio=0.4)
             kp_detector.detect_and_compute(orthophoto)
             orthophotos.append(orthophoto)
 
@@ -89,8 +92,26 @@ def start(image_path_folder, limit=None):
             break
 
     new_orthophotos = []
-    for i, orthophotos_batch in enumerate(ListUtils.batch(orthophotos, BATCH_SIZE)):
-        logging.info(f'Process {i} batch')
+    batch_idx = 0
+    # while True:
+    #     for orthophotos_batch in ListUtils.batch(orthophotos, BATCH_SIZE):
+    #         logging.info(f'Process {batch_idx} batch')
+    #         batch_idx += 1
+    #
+    #         result = create_orthophoto(kp_matcher, kp_detector, orthophotos_batch)
+    #         new_orthophotos.append(result)
+    #
+    #     if len(new_orthophotos) == 1:
+    #         break
+    #
+    #     # [:] copy without reference
+    #     orthophotos = new_orthophotos[:]
+    #     new_orthophotos.clear()
+
+    for orthophotos_batch in ListUtils.batch(orthophotos, BATCH_SIZE):
+        logging.info(f'Process {batch_idx} batch')
+        batch_idx += 1
+
         result = create_orthophoto(kp_matcher, kp_detector, orthophotos_batch)
         new_orthophotos.append(result)
 
@@ -98,10 +119,14 @@ def start(image_path_folder, limit=None):
 
 
 if __name__ == "__main__":
+    start_time = time.time()
     # start("/Users/alexbelogurow/Study/4sem/nirs/resources/orthophoto")
     # start("/Users/alexbelogurow/Study/4sem/nirs/resources/merlischachen")
     # start("/Users/alexbelogurow/Study/4sem/geotagged-images", limit=10)
-    # start("/Users/alexbelogurow/Study/4sem/photos_non_gcp", limit=10)
+    # start("/Users/alexbelogurow/Study/4sem/drone-photos/photos_non_gcp")
     # start("/Users/alexbelogurow/Study/4sem/nirs/resources/rotated")
-    # start("/Users/alexbelogurow/Study/4sem/geotagged-images", limit=30)
-    start("/Users/alexbelogurow/Study/4sem/geotagged-2")
+    start("/Users/alexbelogurow/Study/4sem/drone-photos/geotagged-images", limit=100)
+    # start("/Users/alexbelogurow/Study/4sem/drone-photos/geotagged-2")
+
+    end_time = time.time()
+    logging.info(f'Time of execution {end_time - start_time} sec')
