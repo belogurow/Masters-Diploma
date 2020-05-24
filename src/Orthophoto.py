@@ -1,8 +1,8 @@
 import cv2
 
-# процент сжатия исходного изображения
 import ImageUtils
 
+# процент сжатия исходного изображения
 DEFAULT_COMPRESS_RATIO = .5
 
 

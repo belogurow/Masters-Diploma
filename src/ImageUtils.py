@@ -63,3 +63,7 @@ def get_name_of_image(img_name):
 
 def save_img(img_name, img):
     cv2.imwrite(f'{IMAGE_SAVING_FOLDER}{img_name}.jpg', img)
+
+
+def distance_between_points(start_point, end_point):
+    return np.linalg.norm(np.array(end_point) - np.array(start_point))
