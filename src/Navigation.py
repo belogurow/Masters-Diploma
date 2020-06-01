@@ -10,22 +10,101 @@ from KeypointsDetector import KeypointsDetector
 from KeypointsMatcher import KeypointsMatcher
 from Orthophoto import Orthophoto
 
+RED_COLOR = (0, 0, 255)
+YELLOW_COLOR = (0, 255, 255)
+KEY_POINT_MIN_DISTANCE = 50
+
 
 class Navigation:
-    def __init__(self, orthophoto_path, image_path_folder, start_point, end_point):
+    def __init__(self, orthophoto_path, image_path_folder, navigation_config):
         self.kp_detector = KeypointsDetector()
         self.kp_matcher = KeypointsMatcher()
 
         self.orthophoto_path = orthophoto_path
         self.main_orthophoto = Orthophoto(cv2.imread(orthophoto_path), orthophoto_path, compress_ratio=1)
+        self.config = navigation_config
+
+        # Характеристические точки
+        self.key_points = self.config.key_points
+        # Точки движения ЛА
+        self.route_points = []
 
         self.image_path_folder = image_path_folder
 
+        if self.config.mode == 'test':
+            self.route_points_idx = 0
+        elif self.config.mode == 'drone':
+            raise Exception("Unknown mode")
+
         # todo возможно нужна проверка на координаты
-        self.start_point = start_point
-        self.end_point = end_point
+        # self.start_point = start_point
+        # self.end_point = end_point
 
     def start(self):
+        if self.config.mode == 'test':
+            return self.start_for_test()
+        elif self.config.mode == 'drone':
+            return self.start_for_drone()
+        else:
+            raise Exception("Unknown mode!")
+
+    def start_for_test(self):
+        # Характеристические точки, которые еще не были использованы алгоритмом
+        not_used_key_points = self.key_points[:]
+
+        # Наносим характеристические точки на фото
+        self.draw_key_points()
+
+        while True:
+            # Проверка сигнала GPS
+            gps_found = self.test_signal_gps()
+            if gps_found:
+                logging.info('GPS found. Stop navigation by orthophotos')
+                break
+
+            # Вычисляется текущее местоположение ЛА и координаты наносятся на карту
+            current_point = self.get_current_coords()
+            if current_point is None:
+                logging.warning("Cannot process new points!")
+                break
+            self.route_points.append(current_point)
+            self.draw_last_route_point()
+
+            if len(self.route_points) > 1:
+                self.draw_line_between_last_two_points()
+
+            # Находится ближайшая характерная точка
+            nearest_key_point = self.find_nearest_key_point(current_point, not_used_key_points)
+            if nearest_key_point is None:
+                logging.warning("Key points are over!")
+                break
+
+            # Проверка расстояния между характеристической точкой и текущим местоположением ЛА
+            distance_between_key_point_and_current_coords = ImageUtils.distance_between_points(self.route_points[-1],
+                                                                                               nearest_key_point)
+            if distance_between_key_point_and_current_coords <= KEY_POINT_MIN_DISTANCE:
+                # Данная точка исключается из ключевых
+                not_used_key_points.remove(nearest_key_point)
+                logging.debug(f"Remove current key point {nearest_key_point}")
+
+                # Возможно, нужна команда остановки, чтобы ЛА не летел дальше
+            else:
+                # Вычисление угла поворота и движение к текущей характеристической точке
+                angle = self.find_angle_between_points(self.route_points[-1], nearest_key_point)
+                self.send_command_motion(int(angle), distance_between_key_point_and_current_coords)
+
+        return self.main_orthophoto
+
+    def start_for_drone(self):
+        # Наносим ключевые точки на фото
+        self.draw_key_points()
+
+        # Вычисляется текущее местоположение ЛА
+        current_coords = self.get_current_coords()
+
+        return self.main_orthophoto
+
+    def start_old(self):
         proccessed_photos = []
         angles_between_points = [int(self.find_angle_between_points(self.start_point, self.end_point))]
 
@@ -112,10 +191,69 @@ class Navigation:
 
         return self.main_orthophoto
 
+    def draw_key_points(self):
+        for point in self.key_points:
+            cv2.circle(self.main_orthophoto.img, (int(point[0]), int(point[1])), radius=6,
+                       color=RED_COLOR, thickness=20)
+
+    def draw_last_route_point(self):
+        route_point = self.route_points[-1]
+
+        cv2.circle(self.main_orthophoto.img, (int(route_point[0]), int(route_point[1])), radius=6,
+                   color=YELLOW_COLOR, thickness=20)
+
+    def draw_line_between_last_two_points(self):
+        first_point = self.route_points[-2]
+        second_point = self.route_points[-1]
+
+        cv2.arrowedLine(self.main_orthophoto.img, first_point, second_point, color=YELLOW_COLOR, thickness=3,
+                        tipLength=0.09)
+
+    # def get_current_coords(self):
+
+    def find_nearest_key_point(self, point, not_used_key_points):
+        min_distance = float("inf")
+        nearest_point = None
+
+        if len(not_used_key_points) != 0:
+            for key_point in not_used_key_points:
+                distance = ImageUtils.distance_between_points(point, key_point)
+
+                if distance < min_distance:
+                    min_distance = distance
+                    nearest_point = key_point
+
+        logging.debug(f"Find new key_point {nearest_point}")
+        return nearest_point
+
+    def send_command_motion(self, angle=0, distance_to_key_point=0):
+        logging.debug(f'Send command motion, angle {angle}, distance_to_key_point {distance_to_key_point}')
+
+    def test_signal_gps(self):
+        logging.debug(f'Test signal gps...')
+
+        return False
+
+    def get_current_coords(self):
+        current_coords = None
+
+        if self.config.mode == 'test':
+            if self.route_points_idx >= len(self.config.test_route_points):
+                return current_coords
+            else:
+                self.route_points_idx += 1
+                current_coords = self.config.test_route_points[self.route_points_idx - 1]
+
+        else:
+            raise Exception("Unknown mode!")
+
+        logging.debug(f'Find new current coords {current_coords}')
+        return current_coords
+
     def find_angle_between_points(self, start_point, end_point):
         # предполагается, что верктор скорости при начале навигации всегда направлен вверх
         # необходимо вычислить, на какой угол надо повернуть дрону, чтобы двигаться в направлении конечной точки
-        # угол вычисляется по направлению от вертикального вектора прочитв часов стрелки
+        # угол вычисляется по направлению от вертикального вектора против часов стрелки
 
         vector1 = np.array(end_point) - np.array(start_point)
 

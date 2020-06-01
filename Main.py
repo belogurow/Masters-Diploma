@@ -11,6 +11,7 @@ import ListUtils
 from KeypointsDetector import KeypointsDetector
 from KeypointsMatcher import KeypointsMatcher
 from Navigation import Navigation
+from NavigationConfig import NavigationConfig
 from Orthophoto import Orthophoto
 from Stitching import Stitching
 
@@ -189,8 +190,10 @@ def find_path(orthophoto_path, image_path_folder, limit=None):
     ImageUtils.save_img("result", main_orthophoto.img)
 
 
-def start_navigation(orthophoto_path, image_path_folder, start_point, end_point):
-    navigation = Navigation(orthophoto_path, image_path_folder, start_point, end_point)
+def start_navigation(orthophoto_path, config_file, image_path_folder):
+    config = NavigationConfig(config_file)
+
+    navigation = Navigation(orthophoto_path, image_path_folder, config)
     result = navigation.start()
 
     ImageUtils.save_img("result", result.img)
@@ -210,10 +213,15 @@ if __name__ == "__main__":
     # find_path(orthophoto_path="/Users/alexbelogurow/Study/4sem/drone-photos/non_gcp_orthophoto.jpg",
     #           image_path_folder="/Users/alexbelogurow/Study/4sem/drone-photos/photos_non_gcp_path")
 
-    start_navigation(orthophoto_path="/Users/alexbelogurow/Study/4sem/drone-photos/non_gcp_orthophoto.jpg",
-                     image_path_folder="/Users/alexbelogurow/Study/4sem/drone-photos/photos_non_gcp_path",
-                     start_point=(2500, 2000),
-                     end_point=(500, 500))
+    # start_navigation(orthophoto_path="/Users/alexbelogurow/Study/4sem/drone-photos/non_gcp_orthophoto.jpg",
+    #                  image_path_folder="/Users/alexbelogurow/Study/4sem/drone-photos/photos_non_gcp_path",
+    #                  start_point=(2500, 2000),
+    #                  end_point=(500, 500))
+
+    start_navigation(
+        orthophoto_path="/Users/alexbelogurow/Study/4sem/nirs/resources/navigation/non_gcp_orthophoto.jpg",
+        config_file="/Users/alexbelogurow/Study/4sem/nirs/resources/navigation/configuration.json",
+        image_path_folder="/Users/alexbelogurow/Study/4sem/drone-photos/photos_non_gcp_path")
 
     end_time = time.time()
     logging.info(f'Time of execution {end_time - start_time} sec')
