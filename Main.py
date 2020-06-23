@@ -1,7 +1,9 @@
 import logging
 import time
+import random
 from os import listdir
 from os.path import isfile, join
+import matplotlib.pyplot as plt
 
 import cv2
 import numpy as np
@@ -15,7 +17,7 @@ from NavigationConfig import NavigationConfig
 from Orthophoto import Orthophoto
 from Stitching import Stitching
 
-BATCH_SIZE = 2
+BATCH_SIZE = 3
 GLOBAL_INDEX = 0
 
 logging.basicConfig(
@@ -78,13 +80,13 @@ def start(image_path_folder, limit=None):
     kp_detector = KeypointsDetector()
     kp_matcher = KeypointsMatcher()
 
-    # Для всех входных фото определяем их ключевые точки
+    # Для всех входных фото определяем ключевые точки и их дескрипторы
     photos_count = 0
     for file_name in sorted(listdir(image_path_folder)):
         full_file_name = join(image_path_folder, file_name)
 
         if isfile(full_file_name) and ImageUtils.is_image(full_file_name):
-            orthophoto = Orthophoto(cv2.imread(full_file_name), file_name, compress_ratio=0.4)
+            orthophoto = Orthophoto(cv2.imread(full_file_name), file_name, compress_ratio=0.1)
             kp_detector.detect_and_compute(orthophoto)
             orthophotos.append(orthophoto)
 
@@ -121,75 +123,6 @@ def start(image_path_folder, limit=None):
     create_orthophoto(kp_matcher, kp_detector, new_orthophotos)
 
 
-def find_path(orthophoto_path, image_path_folder, limit=None):
-    if limit is not None:
-        assert limit >= 1
-
-    kp_detector = KeypointsDetector()
-    kp_matcher = KeypointsMatcher()
-
-    proccessed_photos = []
-
-    # Для всех входных фото определяем их ключевые точки
-    photos_count = 0
-    for file_name in sorted(listdir(image_path_folder)):
-        full_file_name = join(image_path_folder, file_name)
-
-        if isfile(full_file_name) and ImageUtils.is_image(full_file_name):
-            orthophoto = Orthophoto(cv2.imread(full_file_name), file_name, compress_ratio=0.4)
-            kp_detector.detect_and_compute(orthophoto)
-            proccessed_photos.append(orthophoto)
-
-            logging.debug(f"Processed {file_name}")
-            photos_count += 1
-
-        if limit is not None and photos_count == limit:
-            break
-
-    main_orthophoto = Orthophoto(cv2.imread(orthophoto_path), orthophoto_path, compress_ratio=1)
-    kp_detector.detect_and_compute(main_orthophoto)
-
-    centers = []
-
-    for proccessed_photo in proccessed_photos:
-        matches = kp_matcher.match(proccessed_photo, main_orthophoto)
-        matches = sorted(matches, key=lambda val: val.distance)[:300]
-
-        # img_matches = ImageUtils.drawMatches(main_orthophoto, proccessed_photo, matches)
-        # ImageUtils.save_img("matches", img_matches)
-
-        # ключевые точки на исходном изображении и их проекции на втором
-        src_points = np.float32([proccessed_photo.keypoints[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
-        dest_points = np.float32([main_orthophoto.keypoints[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
-
-        # матрица проективной плоскости переводящие одни точки в другие
-        M, mask = cv2.findHomography(src_points, dest_points, cv2.RANSAC, 5.0)
-
-        # высота, длина исходного изображения
-        h, w = proccessed_photo.height, proccessed_photo.width
-        border_img1 = np.float32([[0, 0], [0, h - 1], [w - 1, h - 1], [w - 1, 0]]).reshape(-1, 1, 2)
-
-        # центр изображения
-        center_img1 = np.float32([proccessed_photo.height / 2, proccessed_photo.width / 2]).reshape(-1, 1, 2)
-
-        # рамка первого изображения на втором
-        border_img1 = cv2.perspectiveTransform(border_img1, M)
-        center_img1 = cv2.perspectiveTransform(center_img1, M).reshape(2)
-        centers.append(center_img1)
-
-        # result = cv2.polylines(main_orthophoto.img, [np.int32(border_img1)], True, 255, 10, cv2.LINE_AA)
-        result = cv2.circle(main_orthophoto.img, (int(center_img1[0]), int(center_img1[1])), radius=20,
-                            color=(0, 255, 255), thickness=10)
-        # ImageUtils.save_img("path_image", result)
-
-    for i in range(len(centers) - 1):
-        center1 = (int(centers[i][0]), int(centers[i][1]))
-        center2 = (int(centers[i + 1][0]), int(centers[i + 1][1]))
-        cv2.line(main_orthophoto.img, center1, center2, color=(0, 255, 255), thickness=3)
-
-    ImageUtils.save_img("result", main_orthophoto.img)
-
-
 def start_navigation(orthophoto_path, config_file, image_path_folder):
     config = NavigationConfig(config_file)
 
@@ -218,10 +151,10 @@ if __name__ == "__main__":
     #                  start_point=(2500, 2000),
     #                  end_point=(500, 500))
 
-    start_navigation(
-        orthophoto_path="/Users/alexbelogurow/Study/4sem/nirs/resources/navigation/non_gcp_orthophoto.jpg",
-        config_file="/Users/alexbelogurow/Study/4sem/nirs/resources/navigation/configuration.json",
-        image_path_folder="/Users/alexbelogurow/Study/4sem/drone-photos/photos_non_gcp_path")
+    # start_navigation(
+    #     orthophoto_path="/Users/alexbelogurow/Study/4sem/nirs/resources/navigation/non_gcp_orthophoto.jpg",
+    #     config_file="/Users/alexbelogurow/Study/4sem/nirs/resources/navigation/configuration.json",
+    #     image_path_folder="/Users/alexbelogurow/Study/4sem/drone-photos/photos_non_gcp_path")
 
     end_time = time.time()
     logging.info(f'Time of execution {end_time - start_time} sec')
